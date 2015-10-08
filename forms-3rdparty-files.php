@@ -1,7 +1,7 @@
 <?php
 /*
 
-Plugin Name: Forms: 3rd-Party File Attach
+Plugin Name: Forms: 3rd-Party File Attachments
 Plugin URI: https://github.com/zaus/forms-3rdparty-files
 Description: Add file upload processing to Forms 3rdparty Integration
 Author: zaus, dominiceales
@@ -9,6 +9,7 @@ Version: 0.1
 Author URI: http://drzaus.com
 Changelog:
 	0.1 - initial idea from https://github.com/zaus/forms-3rdparty-integration/issues/40
+
 */
 
 
