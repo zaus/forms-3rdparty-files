@@ -37,18 +37,35 @@ abstract class F3i_Files_Base {
 	}
 }
 
-/** plugin -- active if using GF **/
-public class F3i_GF_Files : F3i_Files_Base {
+#region ----------- activate plugins appropriately -----------
+
+class F3i_GF_Files : F3i_Files_Base {
 	protected function get_files() {
 		return $_FILES;
 	}
 }
+if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') )
+	new F3i_GF_Files;
 
 
-/** plugin -- active if using CF7 **/
-public class F3i_CF7_Files : F3i_Files_Base {
+class F3i_CF7_Files : F3i_Files_Base {
 	protected function get_files() {
 		$cf7 = WPCF7_Submission::get_instance();
 		return $cf7 ? $cf7->uploaded_files() : array();
 	}
 }
+if(is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm') )
+	new F3i_CF7_Files;
+
+// not sure if this is necessary?
+/*
+class F3i_Ninja_Files : F3i_Files_Base {
+	protected function get_files() {
+		return $_FILES;
+	}
+}
+if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') )
+	new F3i_Ninja_Files;
+*/
+
+#endregion ----------- activate plugins appropriately -----------
