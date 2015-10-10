@@ -35,6 +35,7 @@ abstract class F3i_Files_Base {
 
 	public function automap($post, $service, $form, $sid, $submission) {
 		$post[$this->_file_entry] = $submission[$this->_file_entry];
+		return $post;
 	}
 	
 	public static function init() {
