@@ -34,6 +34,15 @@ abstract class F3i_Files_Base {
 	abstract protected function get_files();
 
 	public function automap($post, $service, $form, $sid, $submission) {
+		// apply shortcodes (or maybe just settings) to either:
+		// 1. link to the file
+		// 1-5. name of the file
+		// 2. include the bytes
+		// 3. base64 encode the bytes
+		// 4. gzip the bytes
+		// 6. shortcodes would allow combinations of the above
+		
+		// filter result so others can add more stuff?
 		$post[$this->_file_entry] = $submission[$this->_file_entry];
 		return $post;
 	}
