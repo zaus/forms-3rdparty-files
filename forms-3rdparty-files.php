@@ -74,28 +74,6 @@ abstract class F3i_Files_Base {
 
 	abstract protected function get_files();
 
-	public function automap($post, $service, $form, $sid, $submission) {
-		
-		// todo: filter result so others can add more stuff? probably unnecessary, can just attach later filter
-
-		// not configured? ignore
-		if(empty($service[self::OPTION_ATTACH_KEY])) return $post;
-
-		// because attachments are given as an array (in order to preserve how plugin normally gives them, i.e. filename)
-		// we allow extracting via 'fieldname path', as well as multiples
-		$fields = explode(';', $service[self::OPTION_ATTACH_KEY]);
-		$attachments = array_values($submission[$this->_file_entry]);
-
-		// each entry should correspond to the nth attachment; TODO: map array keys with ':' separator?
-		foreach($fields as $i => $field) {
-			$post[$field] = self::Transform($attachments[$i], $service[self::OPTION_ATTACH_HOW]);
-
-			_log(array('field'=> $field, 'i' => $i, 'val' => $attachments[$i], 'trans' => $post[$field]));
-		}
-
-		return $post;
-	}
-
 	/**
 	 * Apply appropriate transformation of the value based on the requested 'how' method
 	 * @param $value the original value
