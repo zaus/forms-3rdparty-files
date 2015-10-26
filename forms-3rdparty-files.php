@@ -22,7 +22,7 @@ abstract class F3i_Files_Base {
 	/**
 	 * Setting for what index to include the attachments
 	 */
-	const OPTION_ATTACH_AS = 'f3if_entry';
+	const OPTION_ATTACH_KEY = 'f3if_key';
 
 	const VAL_ATTACH_PATH = 'path';
 	const VAL_ATTACH_LINK = 'url';
@@ -38,10 +38,7 @@ abstract class F3i_Files_Base {
 
 	function __construct() {
 		// expose files through submission $post array -- makes it available to mappings
-		add_filter(self::B.'_get_submission', array(&$this, 'get_submission'), 11, 2);
-
-		// if you don't want user to need to actually type in the mapping
-		add_filter(self::B.'_service_filter_post', array(&$this, 'automap'), 11, 5);
+		add_filter(self::B.'_get_submission', array(&$this, 'get_submission'), 11, 3);
 
 		// configure whether to attach or not, how; because this is a base class only do it once
 		if(!self::$_once) {
@@ -54,13 +51,7 @@ abstract class F3i_Files_Base {
 
 	private $_file_entry; // alias to where we stick it in the submission/post array
 
-	public function get_submission($submission, $form) {
-		return $submission + array($this->_file_entry=>$this->get_files()); 
-	}
-
-	abstract protected function get_files();
-
-	public function automap($post, $service, $form, $sid, $submission) {
+	public function get_submission($submission, $form, $service) {
 		// todo: apply shortcodes (or maybe just settings) to either:
 		// 1. link to the file
 		// 1-5. name of the file
@@ -68,16 +59,66 @@ abstract class F3i_Files_Base {
 		// 3. base64 encode the bytes
 		// 4. gzip the bytes
 		// 6. shortcodes would allow combinations of the above
+
+		$files = $this->get_files();
+
+		_log('files', $files);
+
+		$replace = empty($service[self::OPTION_ATTACH_KEY]) || ! $service[self::OPTION_ATTACH_KEY];
+		foreach($files as $k => $v) {
+			$submission[$replace ? $k : $k . '_attach'] = self::Transform($attachments[$i], $service[self::OPTION_ATTACH_HOW]);
+		}
+
+		return $submission;
+	}
+
+	abstract protected function get_files();
+
+	public function automap($post, $service, $form, $sid, $submission) {
 		
 		// todo: filter result so others can add more stuff? probably unnecessary, can just attach later filter
 
 		// not configured? ignore
-		if(empty($service[self::OPTION_ATTACH_AS])) return $post;
+		if(empty($service[self::OPTION_ATTACH_KEY])) return $post;
 
+		// because attachments are given as an array (in order to preserve how plugin normally gives them, i.e. filename)
+		// we allow extracting via 'fieldname path', as well as multiples
+		$fields = explode(';', $service[self::OPTION_ATTACH_KEY]);
+		$attachments = array_values($submission[$this->_file_entry]);
 
-		$post[$service[self::OPTION_ATTACH_AS]] = $submission[$this->_file_entry];
+		// each entry should correspond to the nth attachment; TODO: map array keys with ':' separator?
+		foreach($fields as $i => $field) {
+			$post[$field] = self::Transform($attachments[$i], $service[self::OPTION_ATTACH_HOW]);
+
+			_log(array('field'=> $field, 'i' => $i, 'val' => $attachments[$i], 'trans' => $post[$field]));
+		}
 
 		return $post;
+	}
+
+	/**
+	 * Apply appropriate transformation of the value based on the requested 'how' method
+	 * @param $value the original value
+	 * @param $how how to transform it
+	 * @return the converted value
+	 */
+	public static function Transform($value, $how) {
+		switch($how) {
+			case self::VAL_ATTACH_PATH: return $value;
+			case self::VAL_ATTACH_LINK:
+				// maybe strip wp_upload_dir()['basedir'] instead?
+				return site_url( str_replace(ABSPATH, '', $value) );
+			case self::VAL_ATTACH_RAW:
+				$bytes = file_get_contents($value);
+				if(false === $bytes) throw new Exception('Couldn\'t read raw file for Forms3rdpartyFiles plugin');
+				return $bytes;
+			case self::VAL_ATTACH_BAS64:
+				$bytes = file_get_contents($value);
+				if(false === $bytes) throw new Exception('Couldn\'t read raw file to base64 for Forms3rdpartyFiles plugin');
+				return base64_encode($bytes);
+		}
+		// unknown
+		return $value;
 	}
 	
 	public static function init() {
@@ -98,32 +139,39 @@ abstract class F3i_Files_Base {
 			<div class="inside">
 				<em class="description">How to attach files to submission mappings.</em>
 
-				<?php $field = self::OPTION_ATTACH_AS; ?>
+				<?php $field = self::OPTION_ATTACH_KEY; ?>
 				<div class="field">
-					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Map attachments as:', $P); ?></label>
-					<input id="<?php echo $field, '-', $eid ?>" type="text" class="text" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="<?php echo isset($entity[$field]) ? esc_attr($entity[$field]) : self::SUBMISSION_ATTACH ?>" />
-					<em class="description"><?php _e('To what field name the file(s) will be mapped to in the post submission.  Leave blank to omit (and allow you to manually map it instead; note this will not apply transformations).', $P); ?></em>
+					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Overwrite original:', $P); ?></label>
+					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="yes<?php checked($entity[$field], 'yes') ?> />
+					<em class="description"><?php _e('Should the file attachment be attached with the same key as the input, or as <b>originalkey_attach</b>?') ?></em>
 				</div>
 				<?php $field = self::OPTION_ATTACH_HOW; ?>
 				<div class="field">
 					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Attachment style:', $P); ?></label>
-					TODO: select box
-					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="yes"<?php echo isset($entity[$field]) ? ' checked="checked"' : ''?> />
+					<select id="<?php echo $field, '-', $eid ?>" class="select" name="<?php echo $P, '[', $eid, '][', $field, ']'?>">
+					<?php foreach(array(
+						self::VAL_ATTACH_PATH => 'Server path (default)',
+						self::VAL_ATTACH_LINK => 'URL Link',
+						self::VAL_ATTACH_BAS64 => 'BASE64-encoded Bytes',
+						self::VAL_ATTACH_RAW => 'Raw Bytes'
+					) as $k => $v) { ?>
+						<option value="<?php echo esc_attr($k) ; ?>" <?php selected($entity[$field], $k);?>><?php echo $v; ?></option>
+					<?php } ?>
+					</select>
 					<em class="description"><?php _e('How to include file attachments.', $P); ?></em>
 				</div>
 			</div>
 		</fieldset>
 	<?php
-	}
-
-}
+	}//--	fn	service_settings
+}//--	F3i_Files_Base
 F3i_Files_Base::init();
 
 #region ----------- activate plugins appropriately -----------
 
 class F3i_GF_Files extends F3i_Files_Base {
 	protected function get_files() {
-		return $_FILES;
+		return $_FILES; // is this the same array/key format?
 	}
 }
 
