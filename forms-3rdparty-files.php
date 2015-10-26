@@ -120,7 +120,7 @@ abstract class F3i_Files_Base {
 				<?php $field = self::OPTION_ATTACH_KEY; ?>
 				<div class="field">
 					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Retain original input:', $P); ?></label>
-					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="y<?php checked($entity[$field], 'y') ?> />
+					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="1" <?php isset($entity[$field]) && checked($entity[$field], 1) ?> />
 					<em class="description"><?php echo sprintf( __('Should the file attachment be attached with the same key as the input (unchecked), or with fieldname %s to retain the original (checked)?'), '<code>originalkey_attach</code>') ?></em>
 				</div>
 				<?php $field = self::OPTION_ATTACH_HOW; ?>
