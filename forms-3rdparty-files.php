@@ -64,9 +64,9 @@ abstract class F3i_Files_Base {
 
 		_log('files', $files);
 
-		$replace = empty($service[self::OPTION_ATTACH_KEY]) || ! $service[self::OPTION_ATTACH_KEY];
+		$leave_original = empty($service[self::OPTION_ATTACH_KEY]) || ! $service[self::OPTION_ATTACH_KEY];
 		foreach($files as $k => $v) {
-			$submission[$replace ? $k : $k . '_attach'] = self::Transform($attachments[$i], $service[self::OPTION_ATTACH_HOW]);
+			$submission[$leave_original ? $k . '_attach' : $k] = self::Transform($v, $service[self::OPTION_ATTACH_HOW]);
 		}
 
 		return $submission;
@@ -120,7 +120,7 @@ abstract class F3i_Files_Base {
 				<?php $field = self::OPTION_ATTACH_KEY; ?>
 				<div class="field">
 					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Overwrite original:', $P); ?></label>
-					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="yes<?php checked($entity[$field], 'yes') ?> />
+					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="y<?php checked($entity[$field], 'y') ?> />
 					<em class="description"><?php _e('Should the file attachment be attached with the same key as the input, or as <b>originalkey_attach</b>?') ?></em>
 				</div>
 				<?php $field = self::OPTION_ATTACH_HOW; ?>
