@@ -109,6 +109,8 @@ abstract class F3i_Files_Base {
 		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) new F3i_GF_Files;
 		if(is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm') ) new F3i_CF7_Files;
 		//if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') ) new F3i_Ninja_Files;
+
+		do_action(__CLASS__ . '_register'); // extend
 	}
 
 	public function service_settings($eid, $P, $entity) {

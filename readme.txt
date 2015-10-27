@@ -20,12 +20,34 @@ From discussion at https://github.com/zaus/forms-3rdparty-integration/issues/40.
 1. Unzip, upload plugin folder to your plugins directory (`/wp-content/plugins/`)
 2. Make sure [Forms 3rdparty Integration](http://wordpress.org/plugins/forms-3rdparty-integration/) is installed and settings have been saved at least once.
 3. Activate plugin
+4. Choose whether file attachments should replace their original inputs (default behavior) or appear in the submission as `[original-field]_attach`
+5. Choose how the files will be attached -- either:
+	* as server path
+	* as url
+	* as base64-encoded bytes
+	* as raw contents
 
 == Frequently Asked Questions ==
 
-= How do I ...? =
+= How do I perform the appropriate transforms in custom hooks =
 
-...
+Using `F3i_Files_Base::Transform($value, $how)` where `$how` is:
+* `path`
+* `url`
+* `base64`
+* `raw`
+
+= This only works for GF or CF7, what about Ninja Forms or some other form plugin? =
+
+Message the author about adding it, or:
+1. extend `F3i_Files_Base` and declare a method `get_files` that returns an array of (input_field => filepath)
+2. hook to `F3i_Files_Base_register` and declare a new instance of your class
+
+_(A note about Ninja Forms -- file uploads are a paid addon, and the author doesn't have a copy, so adding it wasn't on the roadmap)_
+
+= It doesn't work right... =
+
+Drop an issue at https://github.com/zaus/forms-3rdparty-files
 
 == Screenshots ==
 
