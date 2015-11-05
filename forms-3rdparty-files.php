@@ -5,10 +5,11 @@ Plugin Name: Forms: 3rd-Party File Attachments
 Plugin URI: https://github.com/zaus/forms-3rdparty-files
 Description: Add file upload processing to Forms 3rdparty Integration
 Author: zaus, dominiceales
-Version: 0.1
+Version: 0.2
 Author URI: http://drzaus.com
 Changelog:
 	0.1 - initial idea from https://github.com/zaus/forms-3rdparty-integration/issues/40
+	0.2 - working implementation for GF + CF7, file meta
 
 */
 
@@ -19,10 +20,6 @@ abstract class F3i_Files_Base {
 	 * Setting for how to include the attachments:  path (unchanged), url, raw/binary, base64
 	 */
 	const OPTION_ATTACH_HOW = 'f3if_how';
-	/**
-	 * Setting for what index to include the attachments
-	 */
-	const OPTION_ATTACH_KEY = 'f3if_key';
 
 	const VAL_ATTACH_PATH = 'path';
 	const VAL_ATTACH_LINK = 'url';
@@ -68,7 +65,6 @@ abstract class F3i_Files_Base {
 
 		### _log('files', $files);
 
-		$overwrite = empty($service[self::OPTION_ATTACH_KEY]) || ! $service[self::OPTION_ATTACH_KEY];
 		foreach($files as $k => $meta) {
 			$submission[$k . '_attach'] = self::Transform($meta['path'], $service[self::OPTION_ATTACH_HOW]);
 			$submission[$k . '_size'] = $meta['size'];
@@ -127,12 +123,6 @@ abstract class F3i_Files_Base {
 			<div class="inside">
 				<em class="description">How to attach files to submission mappings.</em>
 
-				<?php $field = self::OPTION_ATTACH_KEY; ?>
-				<div class="field">
-					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Retain original input:', $P); ?></label>
-					<input id="<?php echo $field, '-', $eid ?>" type="checkbox" class="checkbox" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="1" <?php isset($entity[$field]) && checked($entity[$field], 1) ?> />
-					<em class="description"><?php echo sprintf( __('Should the file attachment be attached with the same key as the input (unchecked), or with fieldname %s to retain the original (checked)?'), '<code>originalkey_attach</code>') ?></em>
-				</div>
 				<?php $field = self::OPTION_ATTACH_HOW; ?>
 				<div class="field">
 					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Attachment style:', $P); ?></label>

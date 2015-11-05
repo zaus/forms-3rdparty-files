@@ -20,12 +20,17 @@ From discussion at https://github.com/zaus/forms-3rdparty-integration/issues/40.
 1. Unzip, upload plugin folder to your plugins directory (`/wp-content/plugins/`)
 2. Make sure [Forms 3rdparty Integration](http://wordpress.org/plugins/forms-3rdparty-integration/) is installed and settings have been saved at least once.
 3. Activate plugin
-4. Choose whether file attachments should replace their original inputs (default behavior) or appear in the submission as `[original-field]_attach`
-5. Choose how the files will be attached -- either:
+4. Choose how the files will be attached -- either:
 	* as server path
 	* as url
 	* as base64-encoded bytes
 	* as raw contents
+5. Map to the desired file detail, where _"[field]"_ is the corresponding input field name as you would normally map:
+	* `[field]` -- the filename
+	* `[field]_attach` -- the transformed attachment from the previous step
+	* `[field]_mime` -- the file's actual mime-type
+	* `[field]_size` -- the file size
+
 
 == Frequently Asked Questions ==
 
@@ -55,10 +60,16 @@ N/A.
 
 == Changelog ==
 
+= 0.2 =
+* added "meta" details
+* breaking change - removed overwrite setting as unnecessary (due to compatible formatting)
+* works with GF and CF7
+
 = 0.1 =
 
 IT HAS BEGUN
 
 == Upgrade Notice ==
 
-N/A
+= 0.2 =
+* 'overwrite' setting no longer available; map name with the input field name and file attachment with _theinputfieldname_attach_
