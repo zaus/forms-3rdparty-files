@@ -60,19 +60,27 @@ abstract class F3i_Files_Base {
 		// 4. gzip the bytes
 		// 6. shortcodes would allow combinations of the above
 
-		$files = $this->get_files();
+		// TODO: this really needs to be part of something from base F3i plugin; maybe inject formid (gf_xxx or cf_xxx) into submission?
+		$plugin = is_object($form) ? get_class($form) : gettype($form);
+		
+		// given as array( form-input => server-path )
+		$files = $this->get_files($plugin);
 
 		### _log('files', $files);
 
 		$overwrite = empty($service[self::OPTION_ATTACH_KEY]) || ! $service[self::OPTION_ATTACH_KEY];
-		foreach($files as $k => $v) {
-			$submission[$overwrite ? $k : $k . '_attach'] = self::Transform($v, $service[self::OPTION_ATTACH_HOW]);
+		foreach($files as $k => $meta) {
+			$submission[$k . '_attach'] = self::Transform($meta['path'], $service[self::OPTION_ATTACH_HOW]);
+			$submission[$k . '_size'] = $meta['size'];
+			$submission[$k . '_mime'] = $meta['mime'];
+			// cf7 already has this; add for gf
+			if(isset($meta['name'])) $submission[$k] = $meta['name'];
 		}
 
 		return $submission;
 	}
 
-	abstract protected function get_files();
+	abstract protected function get_files($plugin);
 
 	/**
 	 * Apply appropriate transformation of the value based on the requested 'how' method
@@ -106,8 +114,8 @@ abstract class F3i_Files_Base {
 	// must add stuff after we're ready
 
 	public static function register() {
-		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) new F3i_GF_Files;
 		if(is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm') ) new F3i_CF7_Files;
+		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) new F3i_GF_Files;
 		//if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') ) new F3i_Ninja_Files;
 
 		do_action(__CLASS__ . '_register'); // extend
@@ -150,16 +158,63 @@ F3i_Files_Base::init();
 #region ----------- activate plugins appropriately -----------
 
 class F3i_GF_Files extends F3i_Files_Base {
-	protected function get_files() {
-		return $_FILES; // is this the same array/key format?
+	protected function get_files($plugin) {
+		/*
+		    [input_16] => Array
+			(
+				[name] => test-resume.docx
+				[type] => application/octet-stream
+				[tmp_name] => /var/tmp/phpl2U2Ha
+				[error] => 0
+				[size] => 28
+			)
+		*/
+		
+		// TODO: figure out proper plugin registration so only appropriate one fires
+		if($plugin != 'array') return array();
+		
+		### _log('gf-submission', $plugin, $_FILES);
+		
+		$files = array();
+		foreach($_FILES as $field => $data) {
+			$meta = array();
+			
+			$meta['path'] = $data['tmp_name'];
+			// but GF doesn't provide the filename? toss on other stuff for fun while we're at it
+			$meta['name'] = $data['name'];
+			$finfo = new finfo(FILEINFO_MIME_TYPE);
+			$meta['mime'] = $finfo->file($data['tmp_name']);
+			$meta['size'] = $data['size'];
+			
+			$files[$field] = $meta;
+		}
+		
+		return $files;
 	}
 }
 
 
 class F3i_CF7_Files extends F3i_Files_Base {
-	protected function get_files() {
+	protected function get_files($plugin) {
+		// TODO: figure out proper plugin registration so only appropriate one fires
+		if($plugin != 'WPCF7_ContactForm') return array();
+
 		$cf7 = WPCF7_Submission::get_instance();
-		return $cf7 ? $cf7->uploaded_files() : array();
+		if(!$cf7) return array();
+		
+		$files = $cf7->uploaded_files();
+		
+		### _log('cf7-submission', $plugin, $files);
+
+		// attach metadata while we're at it
+		foreach($files as $field => &$meta) {
+			$meta = array('path' => $meta);
+			
+			$finfo = new finfo(FILEINFO_MIME_TYPE);
+			$meta['mime'] = $finfo->file($meta['path']);
+			$meta['size'] = filesize($meta['path']);
+		}
+		return $files;
 	}
 }
 
