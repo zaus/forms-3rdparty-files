@@ -59,7 +59,7 @@ class F3i_Files_Plugin {
 		$plugin = is_object($form) ? get_class($form) : gettype($form);
 		
 		// given as array( form-input => server-path )
-		$files = do_filter(__CLASS__ . '_get_files', array(), $plugin);
+		$files = apply_filters(__CLASS__ . '_get_files', array(), $plugin);
 
 		### _log('files', $files);
 
@@ -125,7 +125,7 @@ class F3i_Files_Plugin {
 						<option value="<?php echo esc_attr($k) ; ?>" <?php selected($entity[$field], $k);?>><?php echo $v; ?></option>
 					<?php } ?>
 					</select>
-					<em class="description"><?php _e('How to include file attachments.', $P); ?></em>
+					<em class="description"><?php echo sprintf(__('How to include file attachments.  They\'ll be available to mapping as %s.', $P), '<i><code>YOUR_SOURCE_FIELD</code></i><code>_attach</code>'); ?></em>
 				</div>
 			</div>
 		</fieldset>
@@ -145,7 +145,7 @@ abstract class F3i_Files_Form_Plugin {
 		add_filter('F3i_Files_Plugin_get_files', array(&$this, 'get_files'), 10, 2);
 	}
 
-	abstract protected function get_files($files, $plugin);
+	abstract function get_files($files, $plugin);
 }
 
 /**
@@ -162,7 +162,7 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 	}
 
 
-	protected function get_files($files, $plugin) {
+	function get_files($files, $plugin) {
 		/*
 		    [input_16] => Array
 			(
@@ -202,7 +202,7 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 
 
 class F3i_CF7_Files extends F3i_Files_Form_Plugin {
-	protected function get_files($files, $plugin) {
+	function get_files($files, $plugin) {
 		// TODO: figure out proper plugin registration so only appropriate one fires
 		if($plugin != 'WPCF7_ContactForm') return $files;
 
