@@ -5,15 +5,15 @@ Plugin Name: Forms: 3rd-Party File Attachments
 Plugin URI: https://github.com/zaus/forms-3rdparty-files
 Description: Add file upload processing to Forms 3rdparty Integration
 Author: zaus, dominiceales
-Version: 0.2
+Version: 0.3
 Author URI: http://drzaus.com
 Changelog:
 	0.1 - initial idea from https://github.com/zaus/forms-3rdparty-integration/issues/40
 	0.2 - working implementation for GF + CF7, file meta
-
+	0.3 - refactored inheritance, 'better' form registration, include ninja forms
 */
 
-abstract class F3i_Files_Base {
+class F3i_Files_Plugin {
 	const B = 'Forms3rdPartyIntegration';
 
 	/**
@@ -31,17 +31,15 @@ abstract class F3i_Files_Base {
 	 */
 	const SUBMISSION_ATTACH = '_FILES_';
 
-	static $_once = false;
-
 	function __construct() {
 		// expose files through submission $post array -- makes it available to mappings
 		add_filter(self::B.'_get_submission', array(&$this, 'get_submission'), 11, 3);
 
-		// configure whether to attach or not, how; because this is a base class only do it once
-		if(!self::$_once) {
-			add_filter(self::B.'_service_settings', array(&$this, 'service_settings'), 10, 3);
-			self::$_once = true;
-		}
+		// configure whether to attach or not, how
+		add_filter(self::B.'_service_settings', array(&$this, 'service_settings'), 10, 3);
+
+		// register form plugins AFTER critical stuff ready
+		add_action(self::B.'_init', array(__CLASS__, 'register'), 11, 1);
 
 		$this->_file_entry = self::SUBMISSION_ATTACH; // or get from a configurable wp_option?
 	}
@@ -61,7 +59,7 @@ abstract class F3i_Files_Base {
 		$plugin = is_object($form) ? get_class($form) : gettype($form);
 		
 		// given as array( form-input => server-path )
-		$files = $this->get_files($plugin);
+		$files = do_filter(__CLASS__ . '_get_files', array(), $plugin);
 
 		### _log('files', $files);
 
@@ -75,8 +73,6 @@ abstract class F3i_Files_Base {
 
 		return $submission;
 	}
-
-	abstract protected function get_files($plugin);
 
 	/**
 	 * Apply appropriate transformation of the value based on the requested 'how' method
@@ -103,18 +99,11 @@ abstract class F3i_Files_Base {
 		return $value;
 	}
 	
-	public static function init() {
-		add_action(self::B.'_init', array(__CLASS__, 'register'), 11, 1);
-	}
-	
-	// must add stuff after we're ready
-
+	// must add (known) stuff after we're ready; any new hooks can attach themselves to `__CLASS__ . '_get_files'`
 	public static function register() {
 		if(is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm') ) new F3i_CF7_Files;
-		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) new F3i_GF_Files;
-		//if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') ) new F3i_Ninja_Files;
-
-		do_action(__CLASS__ . '_register'); // extend
+		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) new F3i_Form_Files('array');
+		if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') ) new F3i_Form_Files('Ninja_Forms_Processing');
 	}
 
 	public function service_settings($eid, $P, $entity) {
@@ -142,13 +131,38 @@ abstract class F3i_Files_Base {
 		</fieldset>
 	<?php
 	}//--	fn	service_settings
-}//--	F3i_Files_Base
-F3i_Files_Base::init();
+}//--	F3i_Files_Plugin
+
+new F3i_Files_Plugin; // engage!
 
 #region ----------- activate plugins appropriately -----------
 
-class F3i_GF_Files extends F3i_Files_Base {
-	protected function get_files($plugin) {
+/**
+ * Base class for WP forms plugins to get their files appropriately
+ */
+abstract class F3i_Files_Form_Plugin {
+	function __construct() {
+		add_filter('F3i_Files_Plugin_get_files', array(&$this, 'get_files'), 10, 2);
+	}
+
+	abstract protected function get_files($files, $plugin);
+}
+
+/**
+ * A form plugin base class that expects to process the `$_FILES` variable
+ * but must still check if it's an "expected plugin".  Used for Gravity Forms and probably Ninja Forms too.
+ */
+class F3i_Form_Files extends F3i_Files_Form_Plugin {
+	var $plugin_expects;
+
+	function __construct($plugin_expects) {
+		parent::__construct();
+
+		$this->plugin_expects = $plugin_expects;
+	}
+
+
+	protected function get_files($files, $plugin) {
 		/*
 		    [input_16] => Array
 			(
@@ -161,11 +175,14 @@ class F3i_GF_Files extends F3i_Files_Base {
 		*/
 		
 		// TODO: figure out proper plugin registration so only appropriate one fires
-		if($plugin != 'array') return array();
-		
+		if($plugin != $this->plugin_expects) return $files;
+
+		return $this->attach_files($files);
+	}
+
+	protected function attach_files($files) {
 		### _log('gf-submission', $plugin, $_FILES);
 		
-		$files = array();
 		foreach($_FILES as $field => $data) {
 			$meta = array();
 			
@@ -184,10 +201,10 @@ class F3i_GF_Files extends F3i_Files_Base {
 }
 
 
-class F3i_CF7_Files extends F3i_Files_Base {
-	protected function get_files($plugin) {
+class F3i_CF7_Files extends F3i_Files_Form_Plugin {
+	protected function get_files($files, $plugin) {
 		// TODO: figure out proper plugin registration so only appropriate one fires
-		if($plugin != 'WPCF7_ContactForm') return array();
+		if($plugin != 'WPCF7_ContactForm') return $files;
 
 		$cf7 = WPCF7_Submission::get_instance();
 		if(!$cf7) return array();
@@ -208,13 +225,5 @@ class F3i_CF7_Files extends F3i_Files_Base {
 	}
 }
 
-// not sure if this is necessary?
-/*
-class F3i_Ninja_Files extends F3i_Files_Base {
-	protected function get_files() {
-		return $_FILES;
-	}
-}
-*/
 
 #endregion ----------- activate plugins appropriately -----------

@@ -60,6 +60,9 @@ N/A.
 
 == Changelog ==
 
+= 0.3 =
+* refactored inheritance, 'better' form registration, include ninja forms
+
 = 0.2 =
 * added "meta" details
 * breaking change - removed overwrite setting as unnecessary (due to compatible formatting)
@@ -70,6 +73,9 @@ N/A.
 IT HAS BEGUN
 
 == Upgrade Notice ==
+
+= 0.3 =
+* changed base plugin class name and inheritance, removed registration hook
 
 = 0.2 =
 * 'overwrite' setting no longer available; map name with the input field name and file attachment with _theinputfieldname_attach_
