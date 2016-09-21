@@ -3,7 +3,7 @@ Contributors: zaus, dominiceales
 Donate link: http://drzaus.com/donate
 Tags: contact form, form, contact form 7, CF7, gravity forms, GF, CRM, mapping, 3rd-party service, services, remote request, file attachment, upload, file upload
 Requires at least: 3.0
-Tested up to: 3.9.1
+Tested up to: 4.5.3
 Stable tag: trunk
 License: GPLv2 or later
 
@@ -60,6 +60,13 @@ N/A.
 
 == Changelog ==
 
+= 0.4 =
+* including `$form` in `_get_files` hook
+* consolidating byte handling between 'raw' and 'base64'
+* no longer throws an exception if unable to get file, instead returns an error array
+* fixed for GF 2.0.7.2 temp path issue #1
+* new filter: `_get_path` used for GF bug
+
 = 0.3 =
 * refactored inheritance, 'better' form registration, include ninja forms
 
@@ -73,6 +80,9 @@ N/A.
 IT HAS BEGUN
 
 == Upgrade Notice ==
+
+= 0.4 =
+* breaking change for GF due to temp path handling, see [github #1](https://github.com/zaus/forms-3rdparty-files/issues/1)
 
 = 0.3 =
 * changed base plugin class name and inheritance, removed registration hook

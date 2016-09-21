@@ -5,12 +5,13 @@ Plugin Name: Forms: 3rd-Party File Attachments
 Plugin URI: https://github.com/zaus/forms-3rdparty-files
 Description: Add file upload processing to Forms 3rdparty Integration
 Author: zaus, dominiceales
-Version: 0.3
+Version: 0.4
 Author URI: http://drzaus.com
 Changelog:
 	0.1 - initial idea from https://github.com/zaus/forms-3rdparty-integration/issues/40
 	0.2 - working implementation for GF + CF7, file meta
 	0.3 - refactored inheritance, 'better' form registration, include ninja forms
+	0.4 - need to check for GF path (maybe different version than originally wrote against); return exception rather than throw it?
 */
 
 class F3i_Files_Plugin {
@@ -59,7 +60,7 @@ class F3i_Files_Plugin {
 		$plugin = is_object($form) ? get_class($form) : gettype($form);
 		
 		// given as array( form-input => server-path )
-		$files = apply_filters(__CLASS__ . '_get_files', array(), $plugin);
+		$files = apply_filters(__CLASS__ . '_get_files', array(), $plugin, $form);
 
 		### _log('files', $files);
 
@@ -87,13 +88,24 @@ class F3i_Files_Plugin {
 				// maybe strip wp_upload_dir()['basedir'] instead?
 				return site_url( str_replace(ABSPATH, '', $value) );
 			case self::VAL_ATTACH_RAW:
-				$bytes = file_get_contents($value);
-				if(false === $bytes) throw new Exception('Couldn\'t read raw file for Forms3rdpartyFiles plugin');
-				return $bytes;
 			case self::VAL_ATTACH_BAS64:
-				$bytes = file_get_contents($value);
-				if(false === $bytes) throw new Exception('Couldn\'t read raw file to base64 for Forms3rdpartyFiles plugin');
-				return base64_encode($bytes);
+				try {
+					$bytes = file_get_contents($value);
+					// could throw an exception just to get the stack trace, but since we don't want to expose
+					// all of that information return the 'message' instead
+					if(false === $bytes) return array(
+						'error' => "Couldn't read raw file as $how for Forms3rdpartyFiles plugin"
+						// , 'at' => __FILE__ . ':' . __LINE__
+					);
+					if($how == self::VAL_ATTACH_BAS64) return base64_encode($bytes);
+					return $bytes;
+				} catch(Exception $ex) {
+					return array(
+						'error' => $ex->getMessage()
+						//,'at' => $ex->getFile() . ':' . $ex->getLine()
+					);
+				}
+
 		}
 		// unknown
 		return $value;
@@ -102,7 +114,10 @@ class F3i_Files_Plugin {
 	// must add (known) stuff after we're ready; any new hooks can attach themselves to `__CLASS__ . '_get_files'`
 	public static function register() {
 		if(is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm') ) new F3i_CF7_Files;
-		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) new F3i_Form_Files('array');
+		// TODO: is RGFormsModel deprecated?  according to http://stackoverflow.com/questions/26942558/rgformsmodel-questions-gravity-forms but it exists in code
+		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) {
+			F3i_Form_Files::as_gravity_form( new F3i_Form_Files('array') );
+		}
 		if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') ) new F3i_Form_Files('Ninja_Forms_Processing');
 	}
 
@@ -142,10 +157,10 @@ new F3i_Files_Plugin; // engage!
  */
 abstract class F3i_Files_Form_Plugin {
 	function __construct() {
-		add_filter('F3i_Files_Plugin_get_files', array(&$this, 'get_files'), 10, 2);
+		add_filter('F3i_Files_Plugin_get_files', array(&$this, 'get_files'), 10, 3);
 	}
 
-	abstract function get_files($files, $plugin);
+	abstract function get_files($files, $plugin, $form);
 }
 
 /**
@@ -159,10 +174,25 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 		parent::__construct();
 
 		$this->plugin_expects = $plugin_expects;
+
+		// because some versions of GF save to specific upload folder instead
+		// hook 'gform_upload_path' happens too late to be of use
+		// add_filter( 'gform_upload_path', array(&$this, 'get_gf_path'), 1, 2 );
 	}
 
+	static function as_gravity_form($instance) {
+		add_filter(__CLASS__ . '_get_path', array(&$instance, 'gravity_form_path'), 10, 3);
+	}
+	function gravity_form_path($tmp, $field, $form) {
+		$upload = GFFormsModel::get_temp_filename( $form['id'], $field );
+		### _log(__FUNCTION__, $tmp, $field, $upload);
 
-	function get_files($files, $plugin) {
+		// see `forms_model.php:3684` in function `move_temp_file`
+		// overkill path.combine
+		return '/' . implode('/', array(trim(GFFormsModel::get_upload_path( $form['id'] ), '/'), 'tmp', trim($upload['temp_filename'], '/')));
+	}
+
+	function get_files($files, $plugin, $form) {
 		/*
 		    [input_16] => Array
 			(
@@ -177,24 +207,32 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 		// TODO: figure out proper plugin registration so only appropriate one fires
 		if($plugin != $this->plugin_expects) return $files;
 
-		return $this->attach_files($files);
+		return $this->attach_files($files, $form);
 	}
 
-	protected function attach_files($files) {
-		### _log('gf-submission', $plugin, $_FILES);
-		
+	protected function attach_files($files, $form) {
+		/*
+		### _log('attach_gf_files', $files, $_FILES
+			//, $form
+			, GFFormsModel::$uploaded_files
+			, GFFormsModel::get_upload_path( $form['id'] )
+		);
+		*/
+
 		foreach($_FILES as $field => $data) {
 			$meta = array();
 			
-			$meta['path'] = $data['tmp_name'];
+			$meta['path'] = apply_filters(__CLASS__ . '_get_path', $data['tmp_name'], $field, $form);
 			// but GF doesn't provide the filename? toss on other stuff for fun while we're at it
 			$meta['name'] = $data['name'];
 			$finfo = new finfo(FILEINFO_MIME_TYPE);
-			$meta['mime'] = $finfo->file($data['tmp_name']);
+			$meta['mime'] = $finfo->file($meta['path']);
 			$meta['size'] = $data['size'];
 			
 			$files[$field] = $meta;
 		}
+
+		### _log(__FUNCTION__, $files);
 		
 		return $files;
 	}
@@ -202,7 +240,7 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 
 
 class F3i_CF7_Files extends F3i_Files_Form_Plugin {
-	function get_files($files, $plugin) {
+	function get_files($files, $plugin, $form) {
 		// TODO: figure out proper plugin registration so only appropriate one fires
 		if($plugin != 'WPCF7_ContactForm') return $files;
 
