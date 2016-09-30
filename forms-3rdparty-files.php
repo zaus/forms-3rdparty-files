@@ -5,13 +5,14 @@ Plugin Name: Forms: 3rd-Party File Attachments
 Plugin URI: https://github.com/zaus/forms-3rdparty-files
 Description: Add file upload processing to Forms 3rdparty Integration
 Author: zaus, dominiceales
-Version: 0.4
+Version: 0.4.1
 Author URI: http://drzaus.com
 Changelog:
 	0.1 - initial idea from https://github.com/zaus/forms-3rdparty-integration/issues/40
 	0.2 - working implementation for GF + CF7, file meta
 	0.3 - refactored inheritance, 'better' form registration, include ninja forms
 	0.4 - need to check for GF path (maybe different version than originally wrote against); return exception rather than throw it?
+	0.4.1 - fix for GF validation 
 */
 
 class F3i_Files_Plugin {
@@ -69,7 +70,10 @@ class F3i_Files_Plugin {
 			$submission[$k . '_size'] = $meta['size'];
 			$submission[$k . '_mime'] = $meta['mime'];
 			// cf7 already has this; add for gf
-			if(isset($meta['name'])) $submission[$k] = $meta['name'];
+			if((!isset($submission[$k]) || empty($submission[$k])) && isset($meta['name'])) $submission[$k] = $meta['name'];
+
+			// just to make sure we have something
+			if(empty($submission[$k])) $submission[$k] = basename($meta['path']);
 		}
 
 		return $submission;

@@ -60,6 +60,9 @@ N/A.
 
 == Changelog ==
 
+= 0.4.1 =
+* fix #2 -- GF validation errors removes filename, fallback to path basename
+
 = 0.4 =
 * including `$form` in `_get_files` hook
 * consolidating byte handling between 'raw' and 'base64'
