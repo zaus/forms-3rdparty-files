@@ -127,7 +127,7 @@ class F3i_Files_Plugin {
 
 	public function service_settings($eid, $P, $entity) {
 	?>
-		<fieldset><legend><span><?php _e('File Attachments', $P); ?></span></legend>
+		<fieldset class="postbox"><legend class="hndle"><span><?php _e('File Attachments', $P); ?></span></legend>
 			<div class="inside">
 				<em class="description">How to attach files to submission mappings.</em>
 
