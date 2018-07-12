@@ -62,6 +62,7 @@ N/A.
 
 = 0.5 =
 * refactored support for GF single and multifile fields
+* fix: collapsing ui
 
 = 0.4.1 =
 * fix #2 -- GF validation errors removes filename, fallback to path basename
