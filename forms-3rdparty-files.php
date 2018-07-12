@@ -246,7 +246,7 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 		$result += GFFormsModel::$uploaded_files[$fid];
 
 		// merge singles if present
-		if(!isset($singles) || empty($singles)) return $multiples;
+		if(!isset($singles) || empty($singles)) return $result;
 
 		foreach($singles as $field => $data) {
 			// reformat data to match uploaded_files
