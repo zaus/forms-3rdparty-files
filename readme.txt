@@ -3,7 +3,7 @@ Contributors: zaus, dominiceales
 Donate link: http://drzaus.com/donate
 Tags: contact form, form, contact form 7, CF7, gravity forms, GF, CRM, mapping, 3rd-party service, services, remote request, file attachment, upload, file upload
 Requires at least: 3.0
-Tested up to: 4.5.3
+Tested up to: 4.9.6
 Stable tag: trunk
 License: GPLv2 or later
 
@@ -59,6 +59,9 @@ Drop an issue at https://github.com/zaus/forms-3rdparty-files
 N/A.
 
 == Changelog ==
+
+= 0.5 =
+* refactored support for GF single and multifile fields
 
 = 0.4.1 =
 * fix #2 -- GF validation errors removes filename, fallback to path basename
