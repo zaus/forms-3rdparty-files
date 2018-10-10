@@ -5,7 +5,7 @@ Plugin Name: Forms: 3rd-Party File Attachments
 Plugin URI: https://github.com/zaus/forms-3rdparty-files
 Description: Add file upload processing to Forms 3rdparty Integration
 Author: zaus, dominiceales
-Version: 0.5
+Version: 0.5.2
 Author URI: http://drzaus.com
 Changelog:
 	0.1 - initial idea from https://github.com/zaus/forms-3rdparty-integration/issues/40
@@ -14,6 +14,7 @@ Changelog:
 	0.4 - need to check for GF path (maybe different version than originally wrote against); return exception rather than throw it?
 	0.4.1 - fix for GF validation 
 	0.5 - refactored support for GF single and multifile fields
+	0.5.2 - special GF attach by label instead; refactored interval keys, remember last service
 */
 
 class F3i_Files_Plugin {
@@ -23,6 +24,10 @@ class F3i_Files_Plugin {
 	 * Setting for how to include the attachments:  path (unchanged), url, raw/binary, base64
 	 */
 	const OPTION_ATTACH_HOW = 'f3if_how';
+	/**
+	 * Style for referencing GF fields
+	 */
+	const OPTION_GF_STYLE = 'f3if_gf';
 
 	const VAL_ATTACH_PATH = 'path';
 	const VAL_ATTACH_LINK = 'url';
@@ -33,6 +38,8 @@ class F3i_Files_Plugin {
 	 * Where the files should show up in the submission array for mapping
 	 */
 	const SUBMISSION_ATTACH = '_FILES_';
+
+	public static $last_service;
 
 	function __construct() {
 		// expose files through submission $post array -- makes it available to mappings
@@ -58,13 +65,16 @@ class F3i_Files_Plugin {
 		// 4. gzip the bytes
 		// 6. shortcodes would allow combinations of the above
 
+		// save rather than pass so other hooks can access settings
+		self::$last_service = $service;
+
 		// TODO: this really needs to be part of something from base F3i plugin; maybe inject formid (gf_xxx or cf_xxx) into submission?
 		$plugin = is_object($form) ? get_class($form) : gettype($form);
 		
 		// given as array( form-input => server-path )
 		$files = apply_filters(__CLASS__ . '_get_files', array(), $plugin, $form);
 
-		### _log('files', $files);
+		###_log('files after filter', $files);
 
 		foreach($files as $k => $meta) {
 			$submission[$k . '_attach'] = self::Transform($meta, $service[self::OPTION_ATTACH_HOW]);
@@ -74,7 +84,7 @@ class F3i_Files_Plugin {
 			if((!isset($submission[$k]) || empty($submission[$k])) && isset($meta['name'])) $submission[$k] = $meta['name'];
 
 			// just to make sure we have something
-			if(empty($submission[$k])) $submission[$k] = basename($meta['path']);
+			if(empty($submission[$k])) $submission[$k] = basename($meta[F3i_Files_Form_Plugin::FINAL_META_KEY]);
 		}
 
 		return $submission;
@@ -88,14 +98,14 @@ class F3i_Files_Plugin {
 	 */
 	public static function Transform($meta, $how) {
 		switch($how) {
-			case self::VAL_ATTACH_PATH: return $meta['path'];
+			case self::VAL_ATTACH_PATH: return $meta[F3i_Files_Form_Plugin::FINAL_META_KEY];
 			case self::VAL_ATTACH_LINK:
 				// maybe strip wp_upload_dir()['basedir'] instead?
-				return site_url( str_replace(ABSPATH, '', $meta['path']) );
+				return site_url( str_replace(ABSPATH, '', $meta[F3i_Files_Form_Plugin::FINAL_META_KEY]) );
 			case self::VAL_ATTACH_RAW:
 			case self::VAL_ATTACH_BAS64:
 				try {
-					$bytes = file_get_contents($meta['tmp']);
+					$bytes = file_get_contents($meta[F3i_Files_Form_Plugin::CURRENT_META_KEY]);
 					// could throw an exception just to get the stack trace, but since we don't want to expose
 					// all of that information return the 'message' instead
 					if(false === $bytes) return array(
@@ -113,17 +123,25 @@ class F3i_Files_Plugin {
 
 		}
 		// unknown
-		return $value;
+		return $meta;
 	}
 	
 	// must add (known) stuff after we're ready; any new hooks can attach themselves to `__CLASS__ . '_get_files'`
 	public static function register() {
-		if(is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm') ) new F3i_CF7_Files;
+		if(self::has_cf7()) new F3i_CF7_Files;
 		// TODO: is RGFormsModel deprecated?  according to http://stackoverflow.com/questions/26942558/rgformsmodel-questions-gravity-forms but it exists in code
-		if(is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel') ) {
-			F3i_Form_Files::as_gravity_form( new F3i_Form_Files('array') );
-		}
-		if(is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms') ) new F3i_Form_Files('Ninja_Forms_Processing');
+		if(self::has_gf()) F3i_Form_Files::as_gravity_form( new F3i_Form_Files('array') );
+		if(self::has_ninja()) new F3i_Form_Files('Ninja_Forms_Processing');
+	}
+
+	public static function has_cf7() {
+		return is_plugin_active('contact-form-7/wp-contact-form-7.php') || class_exists('WPCF7_ContactForm');
+	}
+	public static function has_gf() {
+		return is_plugin_active('gravityforms/gravityforms.php') || class_exists('RGFormsModel');
+	}
+	public static function has_ninja() {
+		return is_plugin_active('ninja-forms/ninja-forms.php') || class_exists('Ninja_Forms');
 	}
 
 	public function service_settings($eid, $P, $entity) {
@@ -142,11 +160,26 @@ class F3i_Files_Plugin {
 						self::VAL_ATTACH_BAS64 => 'BASE64-encoded Bytes',
 						self::VAL_ATTACH_RAW => 'Raw Bytes'
 					) as $k => $v) { ?>
-						<option value="<?php echo esc_attr($k) ; ?>" <?php selected($entity[$field], $k);?>><?php echo $v; ?></option>
+						<option value="<?php echo esc_attr($k) ; ?>" <?php selected(isset($entity[$field]) ? $entity[$field] : null, $k);?>><?php echo $v; ?></option>
 					<?php } ?>
 					</select>
 					<em class="description"><?php echo sprintf(__('How to include file attachments.  They\'ll be available to mapping as %s.', $P), '<i><code>YOUR_SOURCE_FIELD</code></i><code>_attach</code>'); ?></em>
 				</div>
+
+				<?php
+				if(self::has_gf()) :
+				$field = self::OPTION_GF_STYLE; ?>
+				<div class="field">
+					<label for="<?php echo $field, '-', $eid ?>"><?php _e('Gravity Forms index style:', $P); ?></label>
+					<?php foreach(array('id'=>'ID', 'lbl' => 'Label') as $k => $label) : ?>
+						<label for="<?php echo $field, '-', $eid, $k ?>"><?php _e($label, $P); ?></label>
+						<input type="radio" id="<?php echo $field, '-', $eid, $k ?>" class="radio" name="<?php echo $P, '[', $eid, '][', $field, ']'?>" value="<?php echo $k ?>" <?php checked(isset($entity[$field]) ? $entity[$field] : '', $k) ?>/>
+					<?php endforeach; ?>
+					<em class="description"><?php echo sprintf(__('How to reference fields in Gravity Forms, either as %s for ID or "%s" for Label.', $P), '<i><code>input_4</code></i>', 'My Field Label'); ?></em>
+				</div>
+				<?php
+				endif;
+				?>
 			</div>
 		</fieldset>
 	<?php
@@ -161,6 +194,15 @@ new F3i_Files_Plugin; // engage!
  * Base class for WP forms plugins to get their files appropriately
  */
 abstract class F3i_Files_Form_Plugin {
+	/**
+	 * meta key of where the current (temp) file lives
+	 */
+	const CURRENT_META_KEY = 'curr';
+	/**
+	 * meta key of where the final (permanent) file lives
+	 */
+	const FINAL_META_KEY = 'final';
+
 	function __construct() {
 		add_filter('F3i_Files_Plugin_get_files', array(&$this, 'get_files'), 10, 3);
 	}
@@ -209,7 +251,7 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 	public static function as_gravity_form($instance) {
 		add_filter(__CLASS__ . '_temp_path', array(&$instance, 'gravity_forms_temp_path'), 10, 2);
 		add_filter(__CLASS__ . '_actual_path', array(&$instance, 'gravity_forms_actual_path'), 10, 2);
-		add_filter(__CLASS__ . '_list_files', array(&$instance, 'gravity_forms_list_files'), 10, 2);
+		add_filter(__CLASS__ . '_list_files', array(&$instance, 'gravity_forms_list_files'), 10, 3);
 	}
 	/**
 	 * Attach gravity-forms specific hooks
@@ -239,11 +281,30 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 	/**
 	 * Get all single and multiple file upload data, but standardize them both to same format
 	 */
-	public function gravity_forms_list_files($result, $fid) {
+	public function gravity_forms_list_files($result, $fid, $form) {
 		// because of where we've hooked, we should have access to the raw files for single-upload fields
 		$singles = $_FILES;
 
-		$result += GFFormsModel::$uploaded_files[$fid];
+		$multi = GFFormsModel::$uploaded_files[$fid];
+
+		$use_label = !isset(F3i_Files_Plugin::$last_service[F3i_Files_Plugin::OPTION_GF_STYLE]) || F3i_Files_Plugin::$last_service[F3i_Files_Plugin::OPTION_GF_STYLE] != 'id';
+
+		###_log(__FUNCTION__, $use_label ? 'use label' : 'use id', $form);
+
+		###_log('comparing changed result before', $multi);
+
+		if($use_label) {
+			foreach($multi as $field => $data) {
+				if(!is_array($data)) continue; // because singles also appear in this list
+				$lbl = $this->extract_field_label($field, $form['fields'], $data);
+				$multi[$lbl] = $data;
+				unset($multi[$field]);
+			}
+		}
+		###_log('comparing changed result after', $multi);
+
+		$result += $multi;
+		###_log(__FUNCTION__ . ' multi result', $result);
 
 		// merge singles if present
 		if(!isset($singles) || empty($singles)) return $result;
@@ -257,10 +318,32 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 			if(!empty($upload))
 				$data['temp_filename'] = $this->gravity_forms_temp_path($fid, trim($upload['temp_filename'], '/'));
 
+			// extract field index to get name if desired
+			if($use_label) $field = $this->extract_field_label($field, $form['fields'], $data);
+
 			$result[$field] = array($data);
 		}
 
+		###_log(__FUNCTION__ . ' with singles result', $result);
 		return $result;
+	}
+	private function extract_field_label($name, $fields, $data) {
+		$id = intval(substr($name, 6));
+		###_log(__FUNCTION__, $name, $id, $fields);
+		// save this in case we need it later?
+		// $data['field_id'] = $id;
+
+		// must scan the fields array for the matching id
+		foreach($fields as $i => $field) {
+			###_log('comparing', $i, $id, $field->id, $field->label, $field->adminLabel);
+
+			if($id == $field->id)
+				return !isset($field->adminLabel) || empty($field->adminLabel) ? $field->label : $field->adminLabel;
+		}
+
+		// couldn't find it so return original
+		return $name;
+
 	}
 
 	/**
@@ -306,21 +389,26 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 
 		// using the uploaded name, get the new upload path (which will autonumber for existing)
 		// but the current file lives in the temporary spot, maybe explicitly given or we have to find it from gf
-		$tmp = $data['temp_filename'];
-		if(!file_exists($tmp)) $tmp = apply_filters(__CLASS__ . '_temp_path', $fid, $tmp);
+		$current = $data['temp_filename'];
+		if(!file_exists($current)) $current = apply_filters(__CLASS__ . '_temp_path', $fid, $current);
+		
+		// the file will *eventually* live here
+		$final = apply_filters(__CLASS__ . '_actual_path', $fid, $meta['name'] );
 
-		$meta['path'] = apply_filters(__CLASS__ . '_actual_path', $fid, $meta['name'] );
+		// but where does the file actually live right now?
+		if(!file_exists($current)) $current = $final;
+
+		// save both locations so we can get the actual bytes later too
+		$meta[self::CURRENT_META_KEY] = $current;
+		$meta[self::FINAL_META_KEY] = $final;
 
 		// other info we can get as long as we are here, if we don't have it already
 		if(isset($data['mime'])) $meta['mime'] = $data['mime'];
 		else {
 			$finfo = new finfo(FILEINFO_MIME_TYPE);
-			$meta['mime'] = $finfo->file($tmp);
+			$meta['mime'] = $finfo->file($current);
 		}
-		$meta['size'] = isset($data['size']) ? $data['size'] : filesize($tmp);
-		
-		// save the temp location so we can get the actual bytes later
-		$meta['tmp'] = $tmp;
+		$meta['size'] = isset($data['size']) ? $data['size'] : filesize($current);
 
 		return $meta;
 	}
@@ -332,20 +420,20 @@ class F3i_Form_Files extends F3i_Files_Form_Plugin {
 		// 	, GFFormsModel::get_upload_path( $form['id'] )
 		// );
 		
-		$listed = apply_filters(__CLASS__ . '_list_files', array(), $form['id']);
-		### _log(__FUNCTION__, 'before', $listed);
+		$listed = apply_filters(__CLASS__ . '_list_files', array(), $form['id'], $form);
+		###_log(__FUNCTION__, 'before', $listed);
 		
 		foreach($listed as $field => $fieldFiles)
-		foreach($fieldFiles as $i => $data) {
+		foreach((array)$fieldFiles as $i => $data) {
 			$meta = $this->parse_attachment($data, $form['id']);
 
-			### _log(__FUNCTION__ . '/loop', $field, $i, $data, $meta); ###
+			###_log(__FUNCTION__ . '/loop', $field, $i, $data, $meta); ###
 						
 			// add the first multifile just like the old/single style
 			$files[$i < 1 ? $field : $field . '.' . (1+$i)] = $meta;
 		}
 		
-		### _log(__FUNCTION__, 'after', $files);
+		###_log(__FUNCTION__, 'after', $files);
 		
 		return $files;
 	}
@@ -365,11 +453,14 @@ class F3i_CF7_Files extends F3i_Files_Form_Plugin {
 
 		// attach metadata while we're at it
 		foreach($files as $field => &$meta) {
-			$meta = array('path' => $meta);
+			$meta = array(
+				self::FINAL_META_KEY => $meta,
+				// self::CURRENT_META_KEY => $meta,
+			);
 			
 			$finfo = new finfo(FILEINFO_MIME_TYPE);
-			$meta['mime'] = $finfo->file($meta['path']);
-			$meta['size'] = filesize($meta['path']);
+			$meta['mime'] = $finfo->file($meta[self::FINAL_META_KEY]);
+			$meta['size'] = filesize($meta[self::FINAL_META_KEY]);
 		}
 		return $files;
 	}

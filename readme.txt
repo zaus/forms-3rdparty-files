@@ -42,6 +42,12 @@ Using `F3i_Files_Base::Transform($value, $how)` where `$how` is:
 * `base64`
 * `raw`
 
+= Gravity Forms input ids cause conflicts =
+
+Use the 'label' option to instead reference file uploads via the field label.  You can also set the Advanced > Admin Field Label to use a shorter/non-display label than what users see on the form.
+
+ex) If your upload field `input_5` has a very long label "Choose one or more files blah blah blah" you would reference details like `Choose one or more files blah blah blah_attach` unless you set an admin label like "FileUpload", in which case you'd map to `FileUpload_attach`.  You can also use this to attach to different upload fields across forms -- normally they might not be able to share the input_id, but if you give them the same admin field label then you only need to map the service once to that admin label.
+
 = This only works for GF or CF7, what about Ninja Forms or some other form plugin? =
 
 Message the author about adding it, or:
@@ -59,6 +65,10 @@ Drop an issue at https://github.com/zaus/forms-3rdparty-files
 N/A.
 
 == Changelog ==
+
+= 0.5.2 =
+* added special GF option to use field labels
+* some under-the-hood refactoring for clarity, reuse
 
 = 0.5 =
 * refactored support for GF single and multifile fields
