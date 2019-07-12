@@ -105,7 +105,7 @@ class F3i_Files_Plugin {
 			case self::VAL_ATTACH_RAW:
 			case self::VAL_ATTACH_BAS64:
 				try {
-					$bytes = file_get_contents($meta[F3i_Files_Form_Plugin::CURRENT_META_KEY]);
+					$bytes = file_get_contents($meta[F3i_Files_Form_Plugin::FINAL_META_KEY]);
 					// could throw an exception just to get the stack trace, but since we don't want to expose
 					// all of that information return the 'message' instead
 					if(false === $bytes) return array(
